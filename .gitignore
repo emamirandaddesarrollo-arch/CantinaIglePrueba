@@ -1,0 +1,67 @@
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Dependencias
+node_modules/
+pnpm-store/
+.pnpm-store/
+
+# Archivos de build
+dist/
+dist-ssr/
+build/
+.output/
+
+# Archivos locales
+*.local
+
+# Variables de entorno
+.env
+.env.local
+.env.*.local
+.env.production.local
+
+# Cache
+.cache/
+.eslintcache
+.stylelintcache
+.vite/
+
+# IDEs y editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.iml
+
+# System files
+Thumbs.db
+.AppleDouble
+.LSOverride
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporal files
+temp/
+tmp/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
