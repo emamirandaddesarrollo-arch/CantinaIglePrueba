@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMenu, crearPedido } from "@/hooks/useSupabase";
 import { checkConnection } from "@/lib/supabase";
 import type { MenuItem } from "@/lib/types";
@@ -29,14 +29,24 @@ import {
   Wifi,
   WifiOff,
   Info,
+  Plus,
+  Trash2,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const HERO_IMAGE =
   "https://mgx-backend-cdn.metadl.com/generate/images/1091546/2026-04-05/0fea0e25-7524-49dd-8127-e6e08203bf8d.png";
 
+interface CartItem {
+  menuId: number;
+  menuNombre: string;
+  cantidad: number;
+  precio: number;
+}
+
 export default function Dashboard() {
-  const { menu, loading, error } = useMenu();
+  const { menu, loading, error, refetch } = useMenu();
   const { toast } = useToast();
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<string>("");
@@ -48,6 +58,7 @@ export default function Dashboard() {
     message: string;
   } | null>(null);
   const [showRlsHelp, setShowRlsHelp] = useState(false);
+  const [carrito, setCarrito] = useState<CartItem[]>([]);
 
   useEffect(() => {
     checkConnection().then(setConnStatus);
@@ -55,11 +66,15 @@ export default function Dashboard() {
 
   const selectedMenu = menu.find((m) => m.id.toString() === selectedItem);
 
-  const handleSubmitPedido = async () => {
-    if (!selectedMenu || !nombreCliente.trim()) {
+  const totalCarrito = useMemo(() => {
+    return carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+  }, [carrito]);
+
+  const agregarAlCarrito = () => {
+    if (!selectedMenu) {
       toast({
         title: "Error",
-        description: "Por favor completa todos los campos.",
+        description: "Por favor selecciona un plato.",
         variant: "destructive",
       });
       return;
@@ -75,13 +90,57 @@ export default function Dashboard() {
       return;
     }
 
+    // Verificar si el item ya está en el carrito
+    const itemEnCarrito = carrito.find(item => item.menuId === selectedMenu.id);
+    
+    if (itemEnCarrito) {
+      // Actualizar cantidad si ya existe
+      setCarrito(carrito.map(item =>
+        item.menuId === selectedMenu.id
+          ? { ...item, cantidad: item.cantidad + cantidadNum }
+          : item
+      ));
+    } else {
+      // Agregar nuevo item
+      setCarrito([...carrito, {
+        menuId: selectedMenu.id,
+        menuNombre: selectedMenu.nombre,
+        cantidad: cantidadNum,
+        precio: selectedMenu.precio
+      }]);
+    }
+
+    // Limpiar campos
+    setSelectedItem("");
+    setCantidad(1);
+    toast({
+      title: "¡Agregado!",
+      description: `${selectedMenu.nombre} fue agregado al carrito.`,
+    });
+  };
+
+  const removerDelCarrito = (menuId: number) => {
+    setCarrito(carrito.filter(item => item.menuId !== menuId));
+  };
+
+  const handleSubmitPedido = async () => {
+    if (carrito.length === 0 || !nombreCliente.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor completa el carrito y tu nombre.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSubmitting(true);
-    const result = await crearPedido(
-      selectedMenu.id,
-      cantidadNum,
-      nombreCliente,
-      selectedMenu.precio
-    );
+    const items = carrito.map(item => ({
+      menuId: item.menuId,
+      cantidad: item.cantidad,
+      precio: item.precio
+    }));
+
+    const result = await crearPedido(items, nombreCliente);
     setSubmitting(false);
 
     if (result.success) {
@@ -90,9 +149,11 @@ export default function Dashboard() {
         description: result.message,
       });
       setModalOpen(false);
+      setCarrito([]);
       setSelectedItem("");
       setCantidad(1);
       setNombreCliente("");
+      await refetch();
     } else {
       toast({
         title: "Error",
@@ -339,7 +400,7 @@ INSERT INTO usuario (usuario, password, "rolId")
 
       {/* Modal de Pedido */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="rounded-2xl sm:max-w-md">
+        <DialogContent className="rounded-2xl sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-[#2E86C1] flex items-center gap-2">
               <ShoppingCart className="h-5 w-5" />
@@ -348,6 +409,7 @@ INSERT INTO usuario (usuario, password, "rolId")
           </DialogHeader>
 
           <div className="space-y-4 py-2">
+            {/* Nombre del cliente */}
             <div className="space-y-2">
               <Label htmlFor="nombre" className="font-semibold">
                 Tu Nombre
@@ -361,9 +423,10 @@ INSERT INTO usuario (usuario, password, "rolId")
               />
             </div>
 
-            <div className="space-y-2">
+            {/* Seleccionar plato */}
+            <div className="space-y-2 pb-4 border-b">
               <Label htmlFor="item" className="font-semibold">
-                Elegí un plato
+                Agregar plato al carrito
               </Label>
               <Select value={selectedItem} onValueChange={setSelectedItem}>
                 <SelectTrigger className="rounded-xl">
@@ -378,46 +441,93 @@ INSERT INTO usuario (usuario, password, "rolId")
                   ))}
                 </SelectContent>
               </Select>
+
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Label htmlFor="cantidad" className="text-sm">
+                    Cantidad
+                  </Label>
+                  <Input
+                    id="cantidad"
+                    type="text"
+                    inputMode="numeric"
+                    min={1}
+                    max={selectedMenu?.stock || 1}
+                    value={cantidad}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setCantidad('');
+                      } else {
+                        const num = parseInt(val);
+                        if (!isNaN(num) && num >= 1) setCantidad(num);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (cantidad === '' || cantidad < 1) setCantidad(1);
+                    }}
+                    className="rounded-xl mt-1"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    onClick={agregarAlCarrito}
+                    disabled={!selectedItem}
+                    className="bg-[#E5BE01] hover:bg-[#E5BE01]/90 text-[#1a1a1a] font-bold rounded-xl"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Agregar
+                  </Button>
+                </div>
+              </div>
             </div>
 
+            {/* Carrito */}
             <div className="space-y-2">
-              <Label htmlFor="cantidad" className="font-semibold">
-                Cantidad
-              </Label>
-              <Input
-                id="cantidad"
-                type="text"
-                inputMode="numeric"
-                min={1}
-                max={selectedMenu?.stock || 1}
-                value={cantidad}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === '') {
-                    setCantidad('');
-                  } else {
-                    const num = parseInt(val);
-                    if (!isNaN(num) && num >= 1) setCantidad(num);
-                  }
-                }}
-                onBlur={() => {
-                  if (cantidad === '' || cantidad < 1) setCantidad(1);
-                }}
-                className="rounded-xl"
-              />
-              {selectedMenu && (
-                <p className="text-sm text-gray-500">
-                  Máximo disponible: {selectedMenu.stock}
-                </p>
+              <h3 className="font-semibold text-[#1a1a1a]">
+                Tu Carrito ({carrito.length})
+              </h3>
+              {carrito.length === 0 ? (
+                <div className="p-4 text-center bg-gray-50 rounded-xl text-gray-500 text-sm">
+                  El carrito está vacío
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {carrito.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-xl"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium text-[#1a1a1a]">
+                          {item.menuNombre}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {item.cantidad} × ${item.precio.toLocaleString()} = $
+                          {(item.cantidad * item.precio).toLocaleString()}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => removerDelCarrito(item.menuId)}
+                        className="border-[#C0392B] text-[#C0392B] hover:bg-[#C0392B] hover:text-white rounded-lg"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
-            {selectedMenu && (
-              <div className="bg-[#F2F4F4] rounded-xl p-4">
+            {/* Total */}
+            {carrito.length > 0 && (
+              <div className="bg-[#E5BE01]/10 rounded-xl p-4 border border-[#E5BE01]/20">
                 <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-600">Total:</span>
+                  <span className="font-semibold text-gray-700">Total:</span>
                   <span className="text-2xl font-bold text-[#2E86C1]">
-                    ${(selectedMenu.precio * cantidad).toLocaleString()}
+                    ${totalCarrito.toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -427,14 +537,18 @@ INSERT INTO usuario (usuario, password, "rolId")
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
               variant="outline"
-              onClick={() => setModalOpen(false)}
+              onClick={() => {
+                setModalOpen(false);
+                setCarrito([]);
+                setNombreCliente("");
+              }}
               className="rounded-xl"
             >
               Cancelar
             </Button>
             <Button
               onClick={handleSubmitPedido}
-              disabled={submitting || !selectedItem || !nombreCliente.trim()}
+              disabled={submitting || carrito.length === 0 || !nombreCliente.trim()}
               className="bg-[#E5BE01] hover:bg-[#E5BE01]/90 text-[#1a1a1a] font-bold rounded-xl"
             >
               {submitting ? (

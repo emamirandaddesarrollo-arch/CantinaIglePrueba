@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { usePedidos, marcarPedidoPagado } from "@/hooks/useSupabase";
+import { restar3Horas, formatFechaAjustada } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { PedidoConDetalles } from "@/lib/types";
 
 interface Props {
   isAdmin: boolean;
@@ -127,90 +129,105 @@ export default function PedidosListos({ isAdmin }: Props) {
       )}
 
       {!loading && !error && pedidos.length > 0 && (
-        <Card className="rounded-2xl shadow-md border-0 overflow-hidden">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-green-50">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 text-sm">
-                      #
-                    </th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 text-sm">
-                      Cliente
-                    </th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 text-sm">
-                      Plato
-                    </th>
-                    <th className="text-center py-3 px-4 font-semibold text-gray-600 text-sm">
-                      Cantidad
-                    </th>
-                    <th className="text-center py-3 px-4 font-semibold text-gray-600 text-sm">
-                      Total
-                    </th>
-                    <th className="text-center py-3 px-4 font-semibold text-gray-600 text-sm">
-                      Hora
-                    </th>
+        <div className="space-y-3">
+          {pedidos.map((pedido: PedidoConDetalles) => (
+            <Card
+              key={pedido.id}
+              className="rounded-2xl shadow-md border-0 hover:shadow-lg transition-shadow overflow-hidden"
+            >
+              <CardContent className="p-0">
+                <div className="bg-green-50 p-3 sm:p-4 border-b">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-200 text-green-900">
+                          #{pedido.id}
+                        </span>
+                        <span className="font-bold text-green-900">
+                          {pedido.nombreCliente}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600">
+                        {formatFechaAjustada(pedido.fecha)} • Total: <span className="font-semibold text-green-700">${pedido.precioTotal.toLocaleString()}</span>
+                      </p>
+                    </div>
                     {isAdmin && (
-                      <th className="text-center py-3 px-4 font-semibold text-gray-600 text-sm">
-                        Acción
-                      </th>
+                      <Button
+                        size="sm"
+                        onClick={() => handlePagar(pedido.id)}
+                        disabled={actionLoading === pedido.id}
+                        className="bg-[#2E86C1] hover:bg-[#2E86C1]/90 text-white rounded-xl font-semibold shrink-0"
+                      >
+                        {actionLoading === pedido.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <DollarSign className="h-4 w-4 mr-1" />
+                            Cobrar
+                          </>
+                        )}
+                      </Button>
                     )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {pedidos.map((pedido) => (
-                    <tr
-                      key={pedido.id}
-                      className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors"
-                    >
-                      <td className="py-3 px-4 text-sm text-gray-400">
-                        {pedido.id}
-                      </td>
-                      <td className="py-3 px-4 font-medium text-[#1a1a1a]">
-                        {pedido.nombreCliente}
-                      </td>
-                      <td className="py-3 px-4 text-[#2E86C1] font-medium">
-                        {pedido.menuNombre}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {pedido.cantidad}
-                      </td>
-                      <td className="py-3 px-4 text-center font-semibold">
-                        ${pedido.precio.toLocaleString()}
-                      </td>
-                      <td className="py-3 px-4 text-center text-sm text-gray-500">
-                        {new Date(pedido.fecha).toLocaleTimeString("es-AR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-                      {isAdmin && (
-                        <td className="py-3 px-4 text-center">
-                          <Button
-                            size="sm"
-                            onClick={() => handlePagar(pedido.id)}
-                            disabled={actionLoading === pedido.id}
-                            className="bg-[#2E86C1] hover:bg-[#2E86C1]/90 text-white rounded-xl font-semibold"
-                          >
-                            {actionLoading === pedido.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <DollarSign className="h-4 w-4 mr-1" />
-                                Cobrar
-                              </>
-                            )}
-                          </Button>
-                        </td>
+                  </div>
+                </div>
+
+                {/* Detalles del pedido */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 border-b">
+                        <th className="text-left py-2 px-3 font-semibold text-gray-600 text-xs">
+                          Menú
+                        </th>
+                        <th className="text-center py-2 px-3 font-semibold text-gray-600 text-xs">
+                          Cant.
+                        </th>
+                        <th className="text-center py-2 px-3 font-semibold text-gray-600 text-xs">
+                          P.U.
+                        </th>
+                        <th className="text-center py-2 px-3 font-semibold text-gray-600 text-xs">
+                          Subtotal
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pedido.detalles && pedido.detalles.length > 0 ? (
+                        pedido.detalles.map((detalle, idx) => {
+                          const precio = typeof detalle.precio === 'number' ? detalle.precio : parseFloat(detalle.precio as any) || 0;
+                          return (
+                            <tr
+                              key={idx}
+                              className="border-b last:border-b-0 hover:bg-gray-50/50"
+                            >
+                              <td className="py-2 px-3 font-medium text-[#1a1a1a] text-sm">
+                                {detalle.menuNombre || "Desconocido"}
+                              </td>
+                              <td className="py-2 px-3 text-center font-semibold text-green-700 text-sm">
+                                {detalle.cantidad || 0}
+                              </td>
+                              <td className="py-2 px-3 text-center text-gray-600 text-sm">
+                                ${precio.toLocaleString()}
+                              </td>
+                              <td className="py-2 px-3 text-center font-semibold text-[#1a1a1a] text-sm">
+                                ${(precio * (detalle.cantidad || 0)).toLocaleString()}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className="py-2 px-3 text-center text-gray-500 text-sm">
+                            Sin detalles de pedido
+                          </td>
+                        </tr>
                       )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );

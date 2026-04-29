@@ -1,10 +1,27 @@
 import { useState } from "react";
-import { useMenu, updateMenuItem, createMenuItem, deleteMenuItem } from "@/hooks/useSupabase";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  useMenu,
+  createMenuItem,
+  deleteMenuItem,
+  updateMenuItem,
+  obtenerIngredientesDeMenu,
+  agregarIngredienteAMenu,
+  actualizarCantidadIngrediente,
+  eliminarIngredienteDeMenu,
+  useIngredientes,
+} from "@/hooks/useSupabase";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Package, LogOut, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Package, LogOut, Loader2, Plus, Trash2, Edit2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -30,18 +47,35 @@ interface Props {
 
 export default function StockPanel({ isAdmin, onLogout }: Props) {
   const { menu, loading, error, refetch } = useMenu();
+  const { ingredientes } = useIngredientes();
   const { toast } = useToast();
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editStock, setEditStock] = useState<string>("");
-  const [editPrice, setEditPrice] = useState<string>("");
-  const [updating, setUpdating] = useState(false);
+
+  // Estado para crear producto
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newProductName, setNewProductName] = useState("");
   const [newProductPrice, setNewProductPrice] = useState("");
-  const [newProductStock, setNewProductStock] = useState("");
   const [creating, setCreating] = useState(false);
+
+  // Estado para gestionar ingredientes del producto
+  const [showIngredientesDialog, setShowIngredientesDialog] = useState(false);
+  const [selectedMenuId, setSelectedMenuId] = useState<number | null>(null);
+  const [menuIngredientes, setMenuIngredientes] = useState<any[]>([]);
+  const [loadingIngredientes, setLoadingIngredientes] = useState(false);
+
+  // Estado para agregar ingrediente
+  const [selectedIngredient, setSelectedIngredient] = useState("");
+  const [ingredientCantidad, setIngredientCantidad] = useState("1");
+  const [addingIngredient, setAddingIngredient] = useState(false);
+
+  // Estado para eliminar
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Estado para editar producto
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [editingPrice, setEditingPrice] = useState("");
+  const [editing, setEditing] = useState(false);
 
   // Solo mostrar acceso restringido si explícitamente es false, no si es undefined
   if (isAdmin === false) {
@@ -65,47 +99,93 @@ export default function StockPanel({ isAdmin, onLogout }: Props) {
     if (onLogout) onLogout();
   };
 
-  const handleEditStock = (menuId: number, currentStock: number, currentPrice: number) => {
-    setEditingId(menuId);
-    setEditStock(currentStock.toString());
-    setEditPrice(currentPrice.toString());
+  const openIngredientesDialog = async (menuId: number) => {
+    setSelectedMenuId(menuId);
+    setLoadingIngredientes(true);
+    const datos = await obtenerIngredientesDeMenu(menuId);
+    setMenuIngredientes(datos);
+    setLoadingIngredientes(false);
+    setShowIngredientesDialog(true);
   };
 
-  const handleSaveStock = async (menuId: number) => {
-    const newStock = parseInt(editStock, 10);
-    const newPrice = parseFloat(editPrice);
-
-    if (isNaN(newStock) || newStock < 0) {
+  const handleAddIngredient = async () => {
+    if (!selectedMenuId || !selectedIngredient) {
       toast({
         title: "Error",
-        description: "Ingresá un stock válido (número mayor o igual a 0).",
+        description: "Selecciona un ingrediente.",
         variant: "destructive",
       });
       return;
     }
 
-    if (isNaN(newPrice) || newPrice < 0) {
+    const cantidad = parseInt(ingredientCantidad, 10);
+    if (isNaN(cantidad) || cantidad < 1) {
       toast({
         title: "Error",
-        description: "Ingresá un precio válido (número mayor o igual a 0).",
+        description: "La cantidad debe ser mayor a 0.",
         variant: "destructive",
       });
       return;
     }
 
-    setUpdating(true);
-    const result = await updateMenuItem(menuId, { stock: newStock, precio: newPrice });
-    setUpdating(false);
+    setAddingIngredient(true);
+    const result = await agregarIngredienteAMenu(
+      selectedMenuId,
+      parseInt(selectedIngredient),
+      cantidad
+    );
+    setAddingIngredient(false);
 
     if (result.success) {
       toast({
-        title: "¡Listo!",
+        title: "¡Agregado!",
         description: result.message,
       });
-      setEditingId(null);
-      setEditStock("");
-      setEditPrice("");
-      await refetch();
+      setSelectedIngredient("");
+      setIngredientCantidad("1");
+      const datos = await obtenerIngredientesDeMenu(selectedMenuId);
+      setMenuIngredientes(datos);
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteMenuIngredient = async (menuIngredienteId: number) => {
+    const result = await eliminarIngredienteDeMenu(menuIngredienteId);
+
+    if (result.success) {
+      toast({
+        title: "¡Eliminado!",
+        description: result.message,
+      });
+      setMenuIngredientes(
+        menuIngredientes.filter((m) => m.id !== menuIngredienteId)
+      );
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateCantidad = async (
+    menuIngredienteId: number,
+    newCantidad: number
+  ) => {
+    const result = await actualizarCantidadIngrediente(
+      menuIngredienteId,
+      newCantidad
+    );
+
+    if (result.success) {
+      const datos = await obtenerIngredientesDeMenu(selectedMenuId!);
+      setMenuIngredientes(datos);
     } else {
       toast({
         title: "Error",
@@ -126,7 +206,6 @@ export default function StockPanel({ isAdmin, onLogout }: Props) {
     }
 
     const price = parseFloat(newProductPrice);
-    const stock = parseInt(newProductStock, 10);
 
     if (isNaN(price) || price < 0) {
       toast({
@@ -137,20 +216,10 @@ export default function StockPanel({ isAdmin, onLogout }: Props) {
       return;
     }
 
-    if (isNaN(stock) || stock < 0) {
-      toast({
-        title: "Error",
-        description: "Ingresá un stock válido (número mayor o igual a 0).",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setCreating(true);
     const result = await createMenuItem({
       nombre: newProductName.trim(),
       precio: price,
-      stock: stock,
     });
     setCreating(false);
 
@@ -162,7 +231,6 @@ export default function StockPanel({ isAdmin, onLogout }: Props) {
       setShowCreateDialog(false);
       setNewProductName("");
       setNewProductPrice("");
-      setNewProductStock("");
       await refetch();
     } else {
       toast({
@@ -196,10 +264,61 @@ export default function StockPanel({ isAdmin, onLogout }: Props) {
     }
   };
 
+  const openEditDialog = (item: any) => {
+    setEditingId(item.id);
+    setEditingName(item.nombre);
+    setEditingPrice(item.precio.toString());
+  };
+
+  const handleUpdateProduct = async () => {
+    if (!editingName.trim()) {
+      toast({
+        title: "Error",
+        description: "El nombre del producto es requerido.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const price = parseFloat(editingPrice);
+    if (isNaN(price) || price < 0) {
+      toast({
+        title: "Error",
+        description: "Ingresá un precio válido (número mayor o igual a 0).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEditing(true);
+    const result = await updateMenuItem(editingId!, {
+      nombre: editingName.trim(),
+      precio: price,
+    });
+    setEditing(false);
+
+    if (result.success) {
+      toast({
+        title: "¡Actualizado!",
+        description: result.message,
+      });
+      setEditingId(null);
+      setEditingName("");
+      setEditingPrice("");
+      await refetch();
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-[#1a1a1a]">Gestionar Stock</h2>
+        <h2 className="text-2xl font-bold text-[#1a1a1a]">Gestionar Productos</h2>
         <div className="flex gap-2">
           <Button
             onClick={() => setShowCreateDialog(true)}
@@ -238,7 +357,7 @@ export default function StockPanel({ isAdmin, onLogout }: Props) {
         <Card>
           <CardContent className="p-8 text-center text-gray-500">
             <Package className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p className="mb-4">No hay menús disponibles en el sistema</p>
+            <p className="mb-4">No hay productos disponibles</p>
             <Button
               onClick={() => refetch()}
               variant="outline"
@@ -257,95 +376,57 @@ export default function StockPanel({ isAdmin, onLogout }: Props) {
               <table className="w-full">
                 <thead>
                   <tr className="bg-blue-50 border-b">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600">Nombre</th>
-                    <th className="text-center py-3 px-4 font-semibold text-gray-600">Precio</th>
-                    <th className="text-center py-3 px-4 font-semibold text-gray-600">Stock</th>
-                    <th className="text-center py-3 px-4 font-semibold text-gray-600">Acciones</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-600">
+                      Nombre
+                    </th>
+                    <th className="text-center py-3 px-4 font-semibold text-gray-600">
+                      Precio
+                    </th>
+                    <th className="text-center py-3 px-4 font-semibold text-gray-600">
+                      Ingredientes
+                    </th>
+                    <th className="text-center py-3 px-4 font-semibold text-gray-600">
+                      Acciones
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {menu.map((item) => (
                     <tr key={item.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4 font-medium text-[#1a1a1a]">{item.nombre}</td>
-                      <td className="py-3 px-4 text-center">
-                        {editingId === item.id ? (
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            min="0"
-                            step="0.01"
-                            value={editPrice}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === '' || !isNaN(parseFloat(val))) setEditPrice(val);
-                            }}
-                            className="w-20 text-center mx-auto rounded-lg"
-                            disabled={updating}
-                            placeholder="0.00"
-                          />
-                        ) : (
-                          <span className="font-semibold">${item.precio?.toFixed(2) || "0.00"}</span>
-                        )}
+                      <td className="py-3 px-4 font-medium text-[#1a1a1a]">
+                        {item.nombre}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        {editingId === item.id ? (
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            min="0"
-                            value={editStock}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === '' || !isNaN(parseInt(val))) setEditStock(val);
-                            }}
-                            className="w-16 text-center mx-auto rounded-lg"
-                            disabled={updating}
-                          />
-                        ) : (
-                          <span className="font-bold text-lg">{item.stock}</span>
-                        )}
+                        ${item.precio.toLocaleString()}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        {editingId === item.id ? (
-                          <div className="flex gap-2 justify-center">
-                            <Button
-                              size="sm"
-                              onClick={() => handleSaveStock(item.id)}
-                              disabled={updating}
-                              className="rounded-lg bg-green-600 hover:bg-green-700"
-                            >
-                              {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setEditingId(null)}
-                              disabled={updating}
-                              className="rounded-lg"
-                            >
-                              Cancelar
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex gap-2 justify-center">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEditStock(item.id, item.stock, item.precio)}
-                              className="rounded-lg"
-                            >
-                              Editar
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => setDeletingId(item.id)}
-                              className="rounded-lg"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openIngredientesDialog(item.id)}
+                          className="rounded-lg"
+                        >
+                          <Edit2 className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
+                      </td>
+                      <td className="py-3 px-4 text-center space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEditDialog(item)}
+                          className="rounded-lg"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => setDeletingId(item.id)}
+                          className="rounded-lg"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -356,70 +437,43 @@ export default function StockPanel({ isAdmin, onLogout }: Props) {
         </Card>
       )}
 
-      {/* Diálogo para crear producto */}
+      {/* Dialog para crear producto */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-2xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Agregar Nuevo Producto</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-[#2E86C1]">
+              Crear Nuevo Producto
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 py-4">
             <div>
-              <label className="text-sm font-semibold text-gray-700 block mb-2">
-                Nombre del Producto
+              <label className="text-sm font-semibold text-gray-700 block mb-1">
+                Nombre del Producto *
               </label>
               <Input
+                placeholder="Ej: Pancho"
                 value={newProductName}
                 onChange={(e) => setNewProductName(e.target.value)}
-                placeholder="Ej: Milanesa con guarnición"
                 className="rounded-lg"
-                disabled={creating}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-semibold text-gray-700 block mb-2">
-                  Precio
-                </label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  min="0"
-                  step="0.01"
-                  value={newProductPrice}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '' || !isNaN(parseFloat(val))) setNewProductPrice(val);
-                  }}
-                  placeholder="0.00"
-                  className="rounded-lg"
-                  disabled={creating}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-700 block mb-2">
-                  Stock
-                </label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  min="0"
-                  value={newProductStock}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '' || !isNaN(parseInt(val))) setNewProductStock(val);
-                  }}
-                  placeholder="0"
-                  className="rounded-lg"
-                  disabled={creating}
-                />
-              </div>
+            <div>
+              <label className="text-sm font-semibold text-gray-700 block mb-1">
+                Precio ($) *
+              </label>
+              <Input
+                type="number"
+                placeholder="Ej: 1500"
+                value={newProductPrice}
+                onChange={(e) => setNewProductPrice(e.target.value)}
+                className="rounded-lg"
+              />
             </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowCreateDialog(false)}
-              disabled={creating}
               className="rounded-lg"
             >
               Cancelar
@@ -427,10 +481,193 @@ export default function StockPanel({ isAdmin, onLogout }: Props) {
             <Button
               onClick={handleCreateProduct}
               disabled={creating}
-              className="rounded-lg bg-blue-600 hover:bg-blue-700"
+              className="rounded-lg bg-[#2E86C1] hover:bg-[#2E86C1]/90 text-white"
             >
-              {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Crear Producto
+              {creating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Crear"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para gestionar ingredientes del producto */}
+      <Dialog open={showIngredientesDialog} onOpenChange={setShowIngredientesDialog}>
+        <DialogContent className="rounded-2xl sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-[#2E86C1]">
+              Ingredientes del Producto
+            </DialogTitle>
+          </DialogHeader>
+
+          {loadingIngredientes ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <div className="space-y-4 py-4">
+              {/* Agregar ingrediente */}
+              <div className="border-b pb-4">
+                <h3 className="font-semibold text-sm text-gray-700 mb-3">
+                  Agregar Ingrediente
+                </h3>
+                <div className="space-y-3">
+                  <Select value={selectedIngredient} onValueChange={setSelectedIngredient}>
+                    <SelectTrigger className="rounded-lg">
+                      <SelectValue placeholder="Selecciona un ingrediente..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ingredientes.map((ing) => (
+                        <SelectItem key={ing.id} value={ing.id.toString()}>
+                          {ing.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="Cantidad"
+                      value={ingredientCantidad}
+                      onChange={(e) => setIngredientCantidad(e.target.value)}
+                      className="rounded-lg flex-1"
+                    />
+                    <Button
+                      onClick={handleAddIngredient}
+                      disabled={addingIngredient}
+                      className="rounded-lg bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {addingIngredient ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lista de ingredientes */}
+              <div>
+                <h3 className="font-semibold text-sm text-gray-700 mb-3">
+                  Ingredientes del Producto
+                </h3>
+                {menuIngredientes.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    No hay ingredientes asignados
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {menuIngredientes.map((mi) => (
+                      <div
+                        key={mi.id}
+                        className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg"
+                      >
+                        <div className="flex-1">
+                          <p className="font-medium text-sm text-[#1a1a1a]">
+                            {mi.ingrediente?.nombre || "Ingrediente"}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Cantidad: {mi.cantidad}
+                          </p>
+                        </div>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={mi.cantidad}
+                          onChange={(e) =>
+                            handleUpdateCantidad(mi.id, parseInt(e.target.value))
+                          }
+                          className="w-16 rounded-lg h-8"
+                        />
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteMenuIngredient(mi.id)}
+                          className="rounded-lg"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              onClick={() => setShowIngredientesDialog(false)}
+              className="rounded-lg bg-[#2E86C1] hover:bg-[#2E86C1]/90 text-white"
+            >
+              Listo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para editar producto */}
+      <Dialog open={editingId !== null} onOpenChange={(open) => {
+        if (!open) {
+          setEditingId(null);
+          setEditingName("");
+          setEditingPrice("");
+        }
+      }}>
+        <DialogContent className="rounded-2xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-[#2E86C1]">
+              Editar Producto
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-semibold text-gray-700 block mb-1">
+                Nombre del Producto *
+              </label>
+              <Input
+                placeholder="Ej: Pancho"
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                className="rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-gray-700 block mb-1">
+                Precio ($) *
+              </label>
+              <Input
+                type="number"
+                placeholder="Ej: 1500"
+                value={editingPrice}
+                onChange={(e) => setEditingPrice(e.target.value)}
+                className="rounded-lg"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditingId(null)}
+              className="rounded-lg"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleUpdateProduct}
+              disabled={editing}
+              className="rounded-lg bg-[#2E86C1] hover:bg-[#2E86C1]/90 text-white"
+            >
+              {editing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Guardar"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

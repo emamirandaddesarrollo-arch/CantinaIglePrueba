@@ -1,20 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toaster } from "@/components/ui/toaster";
 import Dashboard from "@/components/Dashboard";
 import PedidosRealizados from "@/components/PedidosRealizados";
-import PedidosListos from "@/components/PedidosListos";
 import AdminPanel from "@/components/AdminPanel";
 import PedidosPagados from "@/components/PedidosPagados";
 import StockPanel from "@/components/StockPanel";
+import IngredientsPanel from "@/components/IngredientsPanel";
 import {
   Home,
   CookingPot,
-  CheckCircle,
   Lock,
   Package,
   UtensilsCrossed,
   DollarSign,
+  Leaf,
 } from "lucide-react";
 
 const LOGO_IMAGE = "/logo.png";  // Reemplaza con el nombre de tu imagen en la carpeta public/
@@ -23,13 +23,23 @@ export default function Index() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
 
+  // Recuperar sesión del localStorage al cargar la página
+  useEffect(() => {
+    const storedAdmin = localStorage.getItem("isAdmin");
+    if (storedAdmin === "true") {
+      setIsAdmin(true);
+    }
+  }, []);
+
   const handleLogin = () => {
     setIsAdmin(true);
+    localStorage.setItem("isAdmin", "true");
     setActiveTab("admin"); // Switch to admin tab after login
   };
 
   const handleLogout = () => {
     setIsAdmin(false);
+    localStorage.removeItem("isAdmin");
     setActiveTab("dashboard");
   };
 
@@ -78,13 +88,6 @@ export default function Index() {
               <CookingPot className="h-4 w-4 mr-1.5" />
               <span className="hidden sm:inline">Pendientes</span>
             </TabsTrigger>
-            <TabsTrigger
-              value="listos"
-              className="flex-1 min-w-[80px] rounded-xl data-[state=active]:bg-green-600 data-[state=active]:text-white data-[state=active]:shadow-md font-semibold text-sm py-2.5 transition-all"
-            >
-              <CheckCircle className="h-4 w-4 mr-1.5" />
-              <span className="hidden sm:inline">Listos</span>
-            </TabsTrigger>
             {!isAdmin ? (
               <TabsTrigger
                 value="admin"
@@ -109,6 +112,13 @@ export default function Index() {
                   <Package className="h-4 w-4 mr-1.5" />
                   <span className="hidden sm:inline">Stock</span>
                 </TabsTrigger>
+                <TabsTrigger
+                  value="ingredientes"
+                  className="flex-1 min-w-[80px] rounded-xl data-[state=active]:bg-[#2E86C1] data-[state=active]:text-white data-[state=active]:shadow-md font-semibold text-sm py-2.5 transition-all"
+                >
+                  <Leaf className="h-4 w-4 mr-1.5" />
+                  <span className="hidden sm:inline">Ingredientes</span>
+                </TabsTrigger>
               </>
             )}
           </TabsList>
@@ -119,10 +129,6 @@ export default function Index() {
 
           <TabsContent value="pendientes" className="mt-0">
             <PedidosRealizados isAdmin={isAdmin} />
-          </TabsContent>
-
-          <TabsContent value="listos" className="mt-0">
-            <PedidosListos isAdmin={isAdmin} />
           </TabsContent>
 
           <TabsContent value="admin" className="mt-0">
@@ -139,6 +145,12 @@ export default function Index() {
           {isAdmin && (
             <TabsContent value="stock" className="mt-0">
               <StockPanel onLogout={handleLogout} />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="ingredientes" className="mt-0">
+              <IngredientsPanel onLogout={handleLogout} />
             </TabsContent>
           )}
         </Tabs>
