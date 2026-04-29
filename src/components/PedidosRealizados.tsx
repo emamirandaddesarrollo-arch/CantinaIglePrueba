@@ -383,6 +383,7 @@ export default function PedidosRealizados({ isAdmin }: Props) {
                         )}
                       </Button>
                     )}
+                    {isAdmin && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
@@ -420,6 +421,7 @@ export default function PedidosRealizados({ isAdmin }: Props) {
                         </AlertDialogContent>
                       )}
                     </AlertDialog>
+                    )}
                   </div>
                 </div>
               </div>
