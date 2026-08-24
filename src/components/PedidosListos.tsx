@@ -22,7 +22,7 @@ interface Props {
 const ALIAS = "jovenessomosfamilia";
 
 export default function PedidosListos({ isAdmin }: Props) {
-  const { pedidos, loading, error } = usePedidos(2, true);
+  const { pedidos, loading, error } = usePedidos(2, 1);
   const { toast } = useToast();
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);

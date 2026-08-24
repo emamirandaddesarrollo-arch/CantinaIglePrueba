@@ -7,6 +7,7 @@ import AdminPanel from "@/components/AdminPanel";
 import PedidosPagados from "@/components/PedidosPagados";
 import StockPanel from "@/components/StockPanel";
 import IngredientsPanel from "@/components/IngredientsPanel";
+import DatabasePanel from "@/components/DatabasePanel";
 import {
   Home,
   CookingPot,
@@ -15,9 +16,11 @@ import {
   UtensilsCrossed,
   DollarSign,
   Leaf,
+  Database,
 } from "lucide-react";
 
-const LOGO_IMAGE = "/logo.png";  // Reemplaza con el nombre de tu imagen en la carpeta public/
+// Versión chica del logo: se muestra a 40px, no hace falta el original de 2 MB.
+const LOGO_IMAGE = "/icon-192.png";
 
 export default function Index() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -110,7 +113,7 @@ export default function Index() {
                   className="flex-1 min-w-[80px] rounded-xl data-[state=active]:bg-[#2E86C1] data-[state=active]:text-white data-[state=active]:shadow-md font-semibold text-sm py-2.5 transition-all"
                 >
                   <Package className="h-4 w-4 mr-1.5" />
-                  <span className="hidden sm:inline">Stock</span>
+                  <span className="hidden sm:inline">Menú</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="ingredientes"
@@ -118,6 +121,13 @@ export default function Index() {
                 >
                   <Leaf className="h-4 w-4 mr-1.5" />
                   <span className="hidden sm:inline">Ingredientes</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="basededatos"
+                  className="flex-1 min-w-[80px] rounded-xl data-[state=active]:bg-[#2E86C1] data-[state=active]:text-white data-[state=active]:shadow-md font-semibold text-sm py-2.5 transition-all"
+                >
+                  <Database className="h-4 w-4 mr-1.5" />
+                  <span className="hidden sm:inline">Base de Datos</span>
                 </TabsTrigger>
               </>
             )}
@@ -151,6 +161,12 @@ export default function Index() {
           {isAdmin && (
             <TabsContent value="ingredientes" className="mt-0">
               <IngredientsPanel onLogout={handleLogout} />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="basededatos" className="mt-0">
+              <DatabasePanel isAdmin={isAdmin} onLogout={handleLogout} />
             </TabsContent>
           )}
         </Tabs>

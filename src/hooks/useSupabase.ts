@@ -2,13 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import type { MenuItem, PedidoConMenu, PedidoConDetalles, MenuIngrediente, DetallePedido } from "@/lib/types";
 
-/** Get today's date range in ISO format (local timezone) */
-function getTodayRange() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return { start: start.toISOString(), end: end.toISOString() };
+/**
+ * Fecha ISO de hace `dias` días. Las fechas se guardan con `new Date().toISOString()`,
+ * así que la ventana es móvil: un pedido vale hasta cumplir `dias` desde que se creó.
+ */
+function getFechaDesde(dias: number): string {
+  return new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString();
 }
 
 export function useMenu() {
@@ -93,7 +92,13 @@ export function useMenu() {
   return { menu, loading, error, refetch: fetchMenu };
 }
 
-export function usePedidos(estadoId: number, todayOnly: boolean = true) {
+/**
+ * @param diasVigencia cuántos días se siguen mostrando los pedidos. null = sin límite.
+ */
+export function usePedidos(
+  estadoId: number,
+  diasVigencia: number | null = 1
+) {
   const [pedidos, setPedidos] = useState<PedidoConDetalles[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,9 +112,8 @@ export function usePedidos(estadoId: number, todayOnly: boolean = true) {
         .select("*")
         .eq("estadoPedidoId", estadoId);
 
-      if (todayOnly) {
-        const { start, end } = getTodayRange();
-        query = query.gte("fecha", start).lt("fecha", end);
+      if (diasVigencia !== null) {
+        query = query.gte("fecha", getFechaDesde(diasVigencia));
       }
 
       query = query.order("fecha", { ascending: false });
@@ -154,7 +158,7 @@ export function usePedidos(estadoId: number, todayOnly: boolean = true) {
     } finally {
       setLoading(false);
     }
-  }, [estadoId, todayOnly]);
+  }, [estadoId, diasVigencia]);
 
   useEffect(() => {
     fetchPedidos();
@@ -198,6 +202,51 @@ export function usePedidos(estadoId: number, todayOnly: boolean = true) {
  * Ej: Si un pancho necesita 2 salchichas y 1 pan, y hay 10 salchichas y 5 panes,
  * el stock disponible es 5 (limitado por los panes)
  */
+/**
+ * Recetas de todos los menús: qué ingredientes lleva cada plato y en qué cantidad
+ * por unidad. Sirve para saber qué hay que cocinar a partir de los pedidos.
+ */
+export function useRecetas() {
+  const [recetas, setRecetas] = useState<MenuIngrediente[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchRecetas = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("menuIngrediente")
+        .select("*, ingrediente(*)");
+      if (error) throw error;
+      setRecetas(data || []);
+    } catch {
+      setRecetas([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRecetas();
+
+    const channel = supabase
+      .channel("recetas-menuIngrediente")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "menuIngrediente" },
+        () => {
+          fetchRecetas();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchRecetas]);
+
+  return { recetas, loading, refetch: fetchRecetas };
+}
+
 export async function calcularStockDisponible(
   menuId: number
 ): Promise<number> {
@@ -505,10 +554,73 @@ export async function marcarPedidoPagado(
   }
 }
 
+/**
+ * Pasa el pedido a "Cobrado" (estado 3) sólo si TODOS sus ítems quedaron
+ * pagados y entregados. Es lo que antes hacía el botón "Cobrar" a mano.
+ * Devuelve true si el pedido cambió de estado.
+ */
+export async function completarPedidoSiCorresponde(
+  pedidoId: number
+): Promise<boolean> {
+  try {
+    const { data: detalles, error } = await supabase
+      .from("detallePedido")
+      .select("cobrado, entregado")
+      .eq("pedidoId", pedidoId);
+
+    if (error || !detalles || detalles.length === 0) return false;
+    if (!detalles.every((d) => d.cobrado && d.entregado)) return false;
+
+    const { error: updErr } = await supabase
+      .from("pedido")
+      .update({ estadoPedidoId: 3 })
+      .eq("id", pedidoId);
+
+    return !updErr;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Revierte un ítem cobrado: lo marca como no pagado y devuelve el pedido
+ * entero a "Solicitado" (estado 1), para corregir errores de cobro.
+ */
+export async function volverPedidoAPendiente(
+  detalleId: number,
+  pedidoId: number
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const { error: detErr } = await supabase
+      .from("detallePedido")
+      .update({ cobrado: false })
+      .eq("id", detalleId);
+
+    if (detErr) throw detErr;
+
+    const { error: pedErr } = await supabase
+      .from("pedido")
+      .update({ estadoPedidoId: 1 })
+      .eq("id", pedidoId);
+
+    if (pedErr) throw pedErr;
+
+    return {
+      success: true,
+      message: `El pedido #${pedidoId} volvió a Pendientes.`,
+    };
+  } catch (e: unknown) {
+    const msg =
+      e instanceof Error ? e.message : "Error al volver el pedido a pendiente";
+    return { success: false, message: msg };
+  }
+}
+
 export async function actualizarDetallePagado(
   detalleId: number,
-  cobrado: boolean
-): Promise<{ success: boolean; message: string }> {
+  cobrado: boolean,
+  pedidoId?: number
+): Promise<{ success: boolean; message: string; pedidoCompletado?: boolean }> {
   try {
     const { error } = await supabase
       .from("detallePedido")
@@ -517,7 +629,16 @@ export async function actualizarDetallePagado(
 
     if (error) throw error;
 
-    return { success: true, message: cobrado ? "Marcado como pagado." : "Desmarcado como pagado." };
+    const pedidoCompletado =
+      cobrado && pedidoId !== undefined
+        ? await completarPedidoSiCorresponde(pedidoId)
+        : false;
+
+    return {
+      success: true,
+      message: cobrado ? "Marcado como pagado." : "Desmarcado como pagado.",
+      pedidoCompletado,
+    };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Error al actualizar";
     return { success: false, message: msg };
@@ -526,8 +647,9 @@ export async function actualizarDetallePagado(
 
 export async function actualizarDetalleEntregado(
   detalleId: number,
-  entregado: boolean
-): Promise<{ success: boolean; message: string }> {
+  entregado: boolean,
+  pedidoId?: number
+): Promise<{ success: boolean; message: string; pedidoCompletado?: boolean }> {
   try {
     const { error } = await supabase
       .from("detallePedido")
@@ -536,7 +658,16 @@ export async function actualizarDetalleEntregado(
 
     if (error) throw error;
 
-    return { success: true, message: entregado ? "Marcado como entregado." : "Desmarcado como entregado." };
+    const pedidoCompletado =
+      entregado && pedidoId !== undefined
+        ? await completarPedidoSiCorresponde(pedidoId)
+        : false;
+
+    return {
+      success: true,
+      message: entregado ? "Marcado como entregado." : "Desmarcado como entregado.",
+      pedidoCompletado,
+    };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Error al actualizar";
     return { success: false, message: msg };

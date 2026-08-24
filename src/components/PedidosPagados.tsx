@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { volverPedidoAPendiente } from "@/hooks/useSupabase";
 import { formatFechaAjustada } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import {
   CheckCircle,
   LogOut,
   TrendingUp,
+  Undo2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { PedidoConDetalles } from "@/lib/types";
@@ -39,9 +41,27 @@ export default function PedidosPagados({ isAdmin, onLogout }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [revirtiendo, setRevirtiendo] = useState<number | null>(null);
 
   const refetch = async () => {
     setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleVolverAPendiente = async (
+    detalleId: number,
+    pedidoId: number
+  ) => {
+    setRevirtiendo(detalleId);
+    const result = await volverPedidoAPendiente(detalleId, pedidoId);
+    setRevirtiendo(null);
+
+    toast({
+      title: result.success ? "Revertido" : "Error",
+      description: result.message,
+      variant: result.success ? "default" : "destructive",
+    });
+
+    if (result.success) await refetch();
   };
 
   useEffect(() => {
@@ -167,6 +187,19 @@ export default function PedidosPagados({ isAdmin, onLogout }: Props) {
     return total;
   }, [detallesCobrados]);
 
+  // Pedidos ordenados por fecha, del más reciente al más antiguo.
+  // Ante fechas iguales, desempata el id (los más altos son los más nuevos).
+  const pedidosOrdenados = useMemo(() => {
+    return Array.from(detallesCobrados.entries()).sort(
+      ([idA, detallesA], [idB, detallesB]) => {
+        const fechaA = new Date(detallesA[0]?.fecha || 0).getTime();
+        const fechaB = new Date(detallesB[0]?.fecha || 0).getTime();
+        if (fechaA !== fechaB) return fechaB - fechaA;
+        return idB - idA;
+      }
+    );
+  }, [detallesCobrados]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -240,7 +273,7 @@ export default function PedidosPagados({ isAdmin, onLogout }: Props) {
 
       {/* Items Cobrados */}
       <div className="space-y-3">
-        {Array.from(detallesCobrados.entries()).map(
+        {pedidosOrdenados.map(
           ([pedidoId, detalles]) => (
             <Card
               key={pedidoId}
@@ -299,6 +332,9 @@ export default function PedidosPagados({ isAdmin, onLogout }: Props) {
                         <th className="text-center py-2 px-3 font-semibold text-gray-600 text-xs">
                           Subtotal
                         </th>
+                        <th className="text-center py-2 px-3 font-semibold text-gray-600 text-xs">
+                          Acciones
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -321,6 +357,26 @@ export default function PedidosPagados({ isAdmin, onLogout }: Props) {
                             </td>
                             <td className="py-2 px-3 text-center font-semibold text-[#1a1a1a] text-sm">
                               ${(precio * cantidad).toLocaleString()}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() =>
+                                  handleVolverAPendiente(detalle.id, pedidoId)
+                                }
+                                disabled={revirtiendo === detalle.id}
+                                className="rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold whitespace-nowrap"
+                              >
+                                {revirtiendo === detalle.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Undo2 className="h-3 w-3 mr-1" />
+                                    Volver a pendiente
+                                  </>
+                                )}
+                              </Button>
                             </td>
                           </tr>
                         );

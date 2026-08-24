@@ -255,6 +255,20 @@ export default function Dashboard() {
                     ¿Problemas para agregar datos?
                   </Button>
                 </div>
+              ) : availableItems.length === 0 ? (
+                <div className="py-8 text-center space-y-4">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
+                    <Package className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="text-gray-500 font-medium">
+                      No hay platos disponibles
+                    </p>
+                    <p className="text-gray-400 text-sm mt-1">
+                      Todos los platos están agotados por el momento.
+                    </p>
+                  </div>
+                </div>
               ) : (
                 <table className="w-full">
                   <thead>
@@ -274,7 +288,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {menu.map((item: MenuItem) => (
+                    {availableItems.map((item: MenuItem) => (
                       <tr
                         key={item.id}
                         className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors"

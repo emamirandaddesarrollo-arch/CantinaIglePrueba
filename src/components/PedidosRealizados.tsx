@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import {
   usePedidos,
+  useRecetas,
   cancelarPedido,
-  marcarPedidoPagado,
   actualizarDetallePagado,
   actualizarDetalleEntregado,
 } from "@/hooks/useSupabase";
@@ -42,6 +42,7 @@ import {
   DollarSign,
   Truck,
   Copy,
+  Leaf,
   Check,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -54,8 +55,15 @@ type SortField = "fecha" | "menu" | "cliente";
 
 const ALIAS = "jovenessomosfamilia";
 
+/** Días que un pedido sigue apareciendo en Pendientes si no se completó. */
+const DIAS_VIGENCIA_PENDIENTES = 3;
+
 export default function PedidosRealizados({ isAdmin }: Props) {
-  const { pedidos, loading, error, refetch } = usePedidos(1, true);
+  const { pedidos, loading, error, refetch } = usePedidos(
+    1,
+    DIAS_VIGENCIA_PENDIENTES
+  );
+  const { recetas } = useRecetas();
   const { toast } = useToast();
   const [filtro, setFiltro] = useState("");
   const [filtroComida, setFiltroComida] = useState("");
@@ -87,6 +95,43 @@ export default function PedidosRealizados({ isAdmin }: Props) {
     );
   }, [pedidos]);
 
+  // Mismo resumen pero abierto en ingredientes: multiplica la receta de cada
+  // plato por la cantidad pedida y suma los ingredientes iguales.
+  const resumenPorIngrediente = useMemo(() => {
+    const recetaPorMenu = new Map<
+      number,
+      { nombre: string; cantidad: number }[]
+    >();
+    recetas.forEach((r) => {
+      const nombre = r.ingrediente?.nombre;
+      if (!nombre) return;
+      const lista = recetaPorMenu.get(r.menuId) || [];
+      lista.push({ nombre, cantidad: Number(r.cantidad) || 0 });
+      recetaPorMenu.set(r.menuId, lista);
+    });
+
+    const map = new Map<string, number>();
+    pedidos.forEach((p) => {
+      p.detalles?.forEach((d) => {
+        // No contar items entregados, igual que el resumen de arriba
+        if (d.entregado) return;
+
+        const platos =
+          typeof d.cantidad === "number"
+            ? d.cantidad
+            : parseInt(d.cantidad as any) || 0;
+
+        (recetaPorMenu.get(d.menuId) || []).forEach((ing) => {
+          map.set(ing.nombre, (map.get(ing.nombre) || 0) + ing.cantidad * platos);
+        });
+      });
+    });
+
+    return Array.from(map.entries())
+      .filter(([, cantidad]) => cantidad > 0)
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  }, [pedidos, recetas]);
+
   // Sort pedidos based on filters and sort field
   const pedidosOrdenados = useMemo(() => {
     const filtered = pedidos.filter((p) => {
@@ -100,7 +145,8 @@ export default function PedidosRealizados({ isAdmin }: Props) {
     return [...filtered].sort((a, b) => {
       switch (sortField) {
         case "fecha":
-          return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
+          // Los más viejos primero: es el orden en que hay que ir despachándolos.
+          return new Date(a.fecha).getTime() - new Date(b.fecha).getTime();
         case "menu":
           const menuA = a.detalles?.[0]?.menuNombre || "";
           const menuB = b.detalles?.[0]?.menuNombre || "";
@@ -129,22 +175,6 @@ export default function PedidosRealizados({ isAdmin }: Props) {
     }
   };
 
-  const handleMarcarListo = async (pedidoId: number) => {
-    setActionLoading(pedidoId);
-    const result = await marcarPedidoPagado(pedidoId);
-    setActionLoading(null);
-
-    toast({
-      title: result.success ? "¡Cobrado!" : "Error",
-      description: result.message,
-      variant: result.success ? "default" : "destructive",
-    });
-
-    if (result.success) {
-      await refetch();
-    }
-  };
-
   const handleCopyAlias = async () => {
     try {
       await navigator.clipboard.writeText(ALIAS);
@@ -160,9 +190,25 @@ export default function PedidosRealizados({ isAdmin }: Props) {
     }
   };
 
-  const handleTogglePagado = async (detalleId: number, currentState: boolean) => {
+  /** Avisa cuando el pedido se completó solo y pasó a Cobrados. */
+  const avisarSiCompletado = (pedidoId: number) => {
+    toast({
+      title: "¡Pedido cobrado!",
+      description: `El pedido #${pedidoId} está pago y entregado, pasó a Cobrados.`,
+    });
+  };
+
+  const handleTogglePagado = async (
+    detalleId: number,
+    currentState: boolean,
+    pedidoId: number
+  ) => {
     setUpdatingDetalle(detalleId);
-    const result = await actualizarDetallePagado(detalleId, !currentState);
+    const result = await actualizarDetallePagado(
+      detalleId,
+      !currentState,
+      pedidoId
+    );
     setUpdatingDetalle(null);
 
     if (!result.success) {
@@ -172,13 +218,22 @@ export default function PedidosRealizados({ isAdmin }: Props) {
         variant: "destructive",
       });
     } else {
+      if (result.pedidoCompletado) avisarSiCompletado(pedidoId);
       await refetch();
     }
   };
 
-  const handleToggleEntregado = async (detalleId: number, currentState: boolean) => {
+  const handleToggleEntregado = async (
+    detalleId: number,
+    currentState: boolean,
+    pedidoId: number
+  ) => {
     setUpdatingDetalle(detalleId);
-    const result = await actualizarDetalleEntregado(detalleId, !currentState);
+    const result = await actualizarDetalleEntregado(
+      detalleId,
+      !currentState,
+      pedidoId
+    );
     setUpdatingDetalle(null);
 
     if (!result.success) {
@@ -188,6 +243,7 @@ export default function PedidosRealizados({ isAdmin }: Props) {
         variant: "destructive",
       });
     } else {
+      if (result.pedidoCompletado) avisarSiCompletado(pedidoId);
       await refetch();
     }
   };
@@ -277,6 +333,35 @@ export default function PedidosRealizados({ isAdmin }: Props) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Resumen abierto por ingredientes, para la cocina */}
+          {resumenPorIngrediente.length > 0 && (
+            <Card className="rounded-2xl shadow-md border-0 border-l-4 border-l-[#2E86C1]">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Leaf className="h-5 w-5 text-[#2E86C1]" />
+                  <h3 className="font-bold text-[#1a1a1a] text-sm">
+                    Ingredientes a Preparar
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {resumenPorIngrediente.map(([nombre, cantidad]) => (
+                    <div
+                      key={nombre}
+                      className="flex items-center justify-between bg-[#2E86C1]/10 rounded-xl px-3 py-2"
+                    >
+                      <span className="font-semibold text-sm text-[#1a1a1a] truncate">
+                        {nombre}
+                      </span>
+                      <span className="bg-[#2E86C1] text-white font-bold text-xs px-2 py-0.5 rounded-full shrink-0">
+                        ×{cantidad}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
@@ -366,23 +451,6 @@ export default function PedidosRealizados({ isAdmin }: Props) {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {isAdmin && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleMarcarListo(pedido.id)}
-                        disabled={actionLoading === pedido.id}
-                        className="bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold"
-                      >
-                        {actionLoading === pedido.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <>
-                            <DollarSign className="h-4 w-4 mr-1" />
-                            Cobrar
-                          </>
-                        )}
-                      </Button>
-                    )}
                     {isAdmin && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -482,7 +550,11 @@ export default function PedidosRealizados({ isAdmin }: Props) {
                                   <Button
                                     size="sm"
                                     onClick={() =>
-                                      handleTogglePagado(detalle.id, detalle.cobrado || false)
+                                      handleTogglePagado(
+                                        detalle.id,
+                                        detalle.cobrado || false,
+                                        pedido.id
+                                      )
                                     }
                                     disabled={updatingDetalle === detalle.id}
                                     className={`rounded-lg font-semibold text-white transition-colors ${
@@ -512,7 +584,8 @@ export default function PedidosRealizados({ isAdmin }: Props) {
                                     onClick={() =>
                                       handleToggleEntregado(
                                         detalle.id,
-                                        detalle.entregado || false
+                                        detalle.entregado || false,
+                                        pedido.id
                                       )
                                     }
                                     disabled={updatingDetalle === detalle.id}
