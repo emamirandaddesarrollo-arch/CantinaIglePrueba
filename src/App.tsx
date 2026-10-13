@@ -1,12 +1,16 @@
+import { lazy, Suspense } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Portal from './pages/Portal';
 import Index from './pages/Index';
 import AuthCallback from './pages/AuthCallback';
 import AuthError from './pages/AuthError';
 // MODULE_IMPORTS_START
 // MODULE_IMPORTS_END
+
+const AlabanzaApp = lazy(() => import('./features/alabanza/AlabanzaApp'));
 
 const queryClient = new QueryClient();
 
@@ -18,9 +22,18 @@ const App = () => (
       <Toaster />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={<Portal />} />
+          <Route path="/cantina" element={<Index />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/error" element={<AuthError />} />
+          <Route
+            path="/alabanza/*"
+            element={
+              <Suspense fallback={<div className="p-6 text-center">Cargando Alabanza...</div>}>
+                <AlabanzaApp />
+              </Suspense>
+            }
+          />
           {/* MODULE_ROUTES_START */}
           {/* MODULE_ROUTES_END */}
         </Routes>

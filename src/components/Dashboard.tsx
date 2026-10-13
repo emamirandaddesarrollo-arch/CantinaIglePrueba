@@ -361,9 +361,6 @@ CREATE POLICY "allow_public_read_menu"
 CREATE POLICY "allow_public_read_pedido"
   ON pedido FOR SELECT USING (true);
 
-CREATE POLICY "allow_public_read_usuario"
-  ON usuario FOR SELECT USING (true);
-
 -- 2. Permitir escritura pública (para app sin auth)
 CREATE POLICY "allow_public_insert_menu"
   ON menu FOR INSERT WITH CHECK (true);
@@ -391,10 +388,8 @@ INSERT INTO menu (nombre, precio, stock) VALUES
   ('Gaseosa 500ml', 1500, 30),
   ('Agua Mineral', 1000, 25);
 
--- 4. Usuario admin (usuario: admin, password: admin123)
-INSERT INTO usuario (usuario, password, "rolId")
-  VALUES ('admin', 'admin123', 1)
-  ON CONFLICT DO NOTHING;`}
+-- No habilites políticas públicas ni guardes contraseñas en usuario.
+-- Configurá el administrador mediante Supabase Auth y la tabla usuario.`}
             </div>
             <p className="text-gray-500 text-xs">
               💡 Después de ejecutar el SQL, recargá esta página y verás los

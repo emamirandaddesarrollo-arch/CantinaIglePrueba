@@ -39,7 +39,14 @@ Para ejecutar el servidor de desarrollo:
 npm run dev
 ```
 
-La aplicación abrirá en `http://localhost:3000/`
+La aplicación abre en `http://localhost:3000/` y ofrece el menú principal.
+La cantina está disponible en `http://localhost:3000/cantina`.
+
+### Sección Alabanza
+
+El módulo de canciones está integrado en la misma aplicación. Accede a
+`http://localhost:3000/alabanza` desde el menú principal.
+El listado de canciones consulta el servicio remoto del proyecto.
 
 ## Compilación para Producción
 
@@ -63,6 +70,12 @@ Los archivos compilados se generarán en la carpeta `dist/`
 - **NUNCA** subes `.env.local` a GitHub (incluido en `.gitignore`)
 - Las variables con prefijo `VITE_` son visibles en el cliente (usa solo claves públicas)
 - Para datos sensibles en el servidor, crea una API backend
+
+### Acceso de administración
+
+El acceso de administrador usa Supabase Auth. Creá la cuenta desde **Authentication → Users** y vinculá su UUID a `public.usuario` con el SQL de configuración mostrado en el formulario de acceso. No habilites lectura pública de esa tabla ni almacenes contraseñas en ella.
+
+La generación de acordes por IA debe pasar por el endpoint backend `/api/generate-chords`. La clave de Groq no debe agregarse a variables `VITE_*` ni al código del cliente.
 
 ## Estructura del Proyecto
 

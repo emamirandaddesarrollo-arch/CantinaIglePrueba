@@ -1,0 +1,178 @@
+.alabanza-app {
+  font-family: Arial, sans-serif;
+  background-color: #f4f4f4;
+  color: #333;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+.alabanza-app .App {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background: white;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+
+}
+
+.alabanza-app .cancion-linea {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  margin-bottom: 10px;
+  font-family: monospace;
+}
+
+.alabanza-app .acordes, .alabanza-app .letras {
+  display: flex;
+  white-space: nowrap;
+}
+
+.alabanza-app .acordes span, .alabanza-app .letras span {
+  display: inline-block;
+  text-align: center;
+}
+
+.alabanza-app .acordes {
+  color: #007bff;
+  font-weight: bold;
+}
+.alabanza-app .prueba {
+  margin-bottom: 20px;
+}
+
+.alabanza-app .top-table{
+    margin-top:2%;
+}
+
+.alabanza-app .alabanza-song-title {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+
+.alabanza-app .alabanza-song-list > h2,
+.alabanza-app .alabanza-edit-page > h1 {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+
+.alabanza-app .alabanza-song-list {
+  margin-top: 2rem;
+}
+
+.alabanza-app .alabanza-list-toolbar,
+.alabanza-app .alabanza-selected-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.alabanza-app .alabanza-list-search {
+  flex: 0 1 20rem;
+  max-width: 36rem;
+}
+
+.alabanza-app .alabanza-list-actions,
+.alabanza-app .alabanza-form-actions,
+.alabanza-app .alabanza-ai-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.alabanza-app .alabanza-list-actions .btn,
+.alabanza-app .alabanza-form-actions .btn,
+.alabanza-app .alabanza-ai-actions .btn {
+  margin: 0;
+}
+
+.alabanza-app .alabanza-selected-header h2 {
+  margin: 0;
+}
+
+.alabanza-app .alabanza-edit-page {
+  max-width: 54rem;
+  padding-bottom: 3rem;
+}
+
+.alabanza-app .alabanza-edit-page .form-group {
+  margin-bottom: 1.25rem;
+}
+
+.alabanza-app .alabanza-ai-actions {
+  margin: -0.5rem 0 1.5rem;
+}
+
+.alabanza-app td .btn {
+  margin: 0.15rem;
+}
+
+.alabanza-app .alabanza-midi-section {
+  margin-bottom: 1.5rem;
+}
+
+.alabanza-app .alabanza-midi-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.alabanza-app .alabanza-midi-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.alabanza-app .alabanza-midi-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.alabanza-app .alabanza-midi-actions .btn {
+  margin: 0;
+}
+
+@media (max-width: 767.98px) {
+  .alabanza-app .alabanza-list-toolbar,
+  .alabanza-app .alabanza-selected-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .alabanza-app .alabanza-list-search {
+    flex: 0 1 auto;
+    max-width: none;
+  }
+
+  .alabanza-app .alabanza-list-actions,
+  .alabanza-app .alabanza-form-actions {
+    width: 100%;
+  }
+
+  .alabanza-app .alabanza-list-actions .btn,
+  .alabanza-app .alabanza-form-actions .btn {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  .alabanza-app .alabanza-midi-section-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .alabanza-app .alabanza-midi-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .alabanza-app .alabanza-midi-actions .btn {
+    width: 100%;
+  }
+}

@@ -674,30 +674,69 @@ export async function actualizarDetalleEntregado(
   }
 }
 
-export async function loginUsuario(
-  usuario: string,
+export async function loginAdmin(
+  email: string,
   password: string
 ): Promise<{ success: boolean; message: string }> {
-  try {
-    const { data, error } = await supabase
-      .from("usuario")
-      .select("*")
-      .eq("usuario", usuario)
-      .eq("password", password)
-      .single();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
-    if (error || !data) {
-      return {
-        success: false,
-        message: "Usuario o contraseña incorrectos.",
-      };
+  if (error || !data.user) {
+    return {
+      success: false,
+      message: "Correo o contraseña incorrectos.",
+    };
+  }
+
+  const { data: usuario, error: roleError } = await supabase
+    .from("usuario")
+    .select("rolId")
+    .eq("auth_user_id", data.user.id)
+    .maybeSingle();
+
+  if (roleError || Number(usuario?.rolId) !== 1) {
+    if (roleError) console.error("No se pudo verificar el rol de administrador:", roleError);
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) console.error("No se pudo cerrar la sesión no autorizada:", signOutError);
+
+    return {
+      success: false,
+      message: roleError
+        ? "No se pudo verificar el permiso de administrador."
+        : "Esta cuenta no tiene permisos de administrador.",
+    };
+  }
+
+  return { success: true, message: "Inicio de sesión exitoso." };
+}
+
+export async function checkAdminSession(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    if (!data.user) return false;
+
+    const { data: usuario, error: roleError } = await supabase
+      .from("usuario")
+      .select("rolId")
+      .eq("auth_user_id", data.user.id)
+      .maybeSingle();
+
+    if (roleError) throw roleError;
+    if (Number(usuario?.rolId) !== 1) {
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) throw signOutError;
+      return false;
     }
 
-    return { success: true, message: "Inicio de sesión exitoso." };
+    return true;
   } catch (e: unknown) {
     const msg =
-      e instanceof Error ? e.message : "Error al iniciar sesión";
-    return { success: false, message: msg };
+      e instanceof Error ? e.message : "Error al verificar la sesión de administrador";
+    console.error(msg);
+    return false;
   }
 }
 

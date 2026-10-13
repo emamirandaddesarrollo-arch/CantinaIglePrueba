@@ -59,6 +59,5 @@ export interface EstadoPedido {
 export interface Usuario {
   id: number;
   usuario: string;
-  password: string;
   rolId: number;
 }

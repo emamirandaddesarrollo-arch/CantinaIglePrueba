@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { checkAdminSession } from "@/hooks/useSupabase";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toaster } from "@/components/ui/toaster";
 import Dashboard from "@/components/Dashboard";
@@ -8,6 +11,7 @@ import PedidosPagados from "@/components/PedidosPagados";
 import StockPanel from "@/components/StockPanel";
 import IngredientsPanel from "@/components/IngredientsPanel";
 import DatabasePanel from "@/components/DatabasePanel";
+import { useToast } from "@/hooks/use-toast";
 import {
   Home,
   CookingPot,
@@ -17,6 +21,7 @@ import {
   DollarSign,
   Leaf,
   Database,
+  ArrowLeft,
 } from "lucide-react";
 
 // Versión chica del logo: se muestra a 40px, no hace falta el original de 2 MB.
@@ -25,24 +30,37 @@ const LOGO_IMAGE = "/icon-192.png";
 export default function Index() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const { toast } = useToast();
 
-  // Recuperar sesión del localStorage al cargar la página
   useEffect(() => {
-    const storedAdmin = localStorage.getItem("isAdmin");
-    if (storedAdmin === "true") {
-      setIsAdmin(true);
-    }
+    let mounted = true;
+    checkAdminSession().then((isAuthenticatedAdmin) => {
+      if (mounted) setIsAdmin(isAuthenticatedAdmin);
+    });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const handleLogin = () => {
     setIsAdmin(true);
-    localStorage.setItem("isAdmin", "true");
     setActiveTab("admin"); // Switch to admin tab after login
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("No se pudo cerrar la sesión de administrador:", error);
+      toast({
+        title: "No se pudo cerrar la sesión",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsAdmin(false);
-    localStorage.removeItem("isAdmin");
     setActiveTab("dashboard");
   };
 
@@ -64,6 +82,13 @@ export default function Index() {
               La Gracia de Cristo - Grupo de Jóvenes
             </p>
           </div>
+          <Link
+            to="/"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white/15 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/25"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Menú</span>
+          </Link>
           {isAdmin && (
             <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-[#E5BE01] text-[#1a1a1a]">
               <Lock className="h-3 w-3" />
