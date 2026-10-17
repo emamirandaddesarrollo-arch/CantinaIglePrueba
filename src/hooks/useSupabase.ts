@@ -675,69 +675,29 @@ export async function actualizarDetalleEntregado(
 }
 
 export async function loginAdmin(
-  email: string,
+  usuario: string,
   password: string
 ): Promise<{ success: boolean; message: string }> {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error || !data.user) {
-    return {
-      success: false,
-      message: "Correo o contraseña incorrectos.",
-    };
-  }
-
-  const { data: usuario, error: roleError } = await supabase
+  const { data, error } = await supabase
     .from("usuario")
-    .select("rolId")
-    .eq("auth_user_id", data.user.id)
+    .select("id, rolId")
+    .eq("usuario", usuario.trim())
+    .eq("password", password)
     .maybeSingle();
 
-  if (roleError || Number(usuario?.rolId) !== 1) {
-    if (roleError) console.error("No se pudo verificar el rol de administrador:", roleError);
-    const { error: signOutError } = await supabase.auth.signOut();
-    if (signOutError) console.error("No se pudo cerrar la sesión no autorizada:", signOutError);
-
+  if (error || !data) {
     return {
       success: false,
-      message: roleError
-        ? "No se pudo verificar el permiso de administrador."
-        : "Esta cuenta no tiene permisos de administrador.",
+      message: "Usuario o contraseña incorrectos.",
     };
   }
 
+  localStorage.setItem("isAdmin", "true");
   return { success: true, message: "Inicio de sesión exitoso." };
 }
 
 export async function checkAdminSession(): Promise<boolean> {
-  try {
-    const { data, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    if (!data.user) return false;
-
-    const { data: usuario, error: roleError } = await supabase
-      .from("usuario")
-      .select("rolId")
-      .eq("auth_user_id", data.user.id)
-      .maybeSingle();
-
-    if (roleError) throw roleError;
-    if (Number(usuario?.rolId) !== 1) {
-      const { error: signOutError } = await supabase.auth.signOut();
-      if (signOutError) throw signOutError;
-      return false;
-    }
-
-    return true;
-  } catch (e: unknown) {
-    const msg =
-      e instanceof Error ? e.message : "Error al verificar la sesión de administrador";
-    console.error(msg);
-    return false;
-  }
+  return localStorage.getItem("isAdmin") === "true";
 }
 
 export async function updateMenuStock(

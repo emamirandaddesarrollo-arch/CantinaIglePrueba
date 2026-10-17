@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
 import { checkAdminSession } from "@/hooks/useSupabase";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toaster } from "@/components/ui/toaster";
@@ -11,7 +10,6 @@ import PedidosPagados from "@/components/PedidosPagados";
 import StockPanel from "@/components/StockPanel";
 import IngredientsPanel from "@/components/IngredientsPanel";
 import DatabasePanel from "@/components/DatabasePanel";
-import { useToast } from "@/hooks/use-toast";
 import {
   Home,
   CookingPot,
@@ -30,7 +28,6 @@ const LOGO_IMAGE = "/icon-192.png";
 export default function Index() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
-  const { toast } = useToast();
 
   useEffect(() => {
     let mounted = true;
@@ -48,18 +45,8 @@ export default function Index() {
     setActiveTab("admin"); // Switch to admin tab after login
   };
 
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error("No se pudo cerrar la sesión de administrador:", error);
-      toast({
-        title: "No se pudo cerrar la sesión",
-        description: error.message,
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handleLogout = () => {
+    localStorage.removeItem("isAdmin");
     setIsAdmin(false);
     setActiveTab("dashboard");
   };

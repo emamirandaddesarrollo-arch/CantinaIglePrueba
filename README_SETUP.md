@@ -73,7 +73,7 @@ Los archivos compilados se generarán en la carpeta `dist/`
 
 ### Acceso de administración
 
-El acceso de administrador usa Supabase Auth. Creá la cuenta desde **Authentication → Users** y vinculá su UUID a `public.usuario` con el SQL de configuración mostrado en el formulario de acceso. No habilites lectura pública de esa tabla ni almacenes contraseñas en ella.
+El acceso actual valida el usuario y la contraseña contra las columnas `usuario` y `password` de `public.usuario`. La sesión temporal se guarda en `localStorage`; no hace falta crear una cuenta en Supabase Auth. Esta compatibilidad directa con la tabla es temporal y no debe considerarse segura para producción: mover la validación y las operaciones administrativas a un backend está pendiente.
 
 La generación de acordes por IA debe pasar por el endpoint backend `/api/generate-chords`. La clave de Groq no debe agregarse a variables `VITE_*` ni al código del cliente.
 

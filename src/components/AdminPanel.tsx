@@ -28,17 +28,17 @@ export default function AdminPanel({ isAdmin, onLogin }: Props) {
 }
 
 function LoginForm({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail] = useState("");
+  const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const { toast } = useToast();
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
+    if (!usuario.trim() || !password.trim()) {
       toast({
         title: "Error",
-        description: "Completá correo y contraseña.",
+        description: "Completá usuario y contraseña.",
         variant: "destructive",
       });
       return;
@@ -47,7 +47,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
     setLoading(true);
     let result: { success: boolean; message: string };
     try {
-      result = await loginAdmin(email, password);
+      result = await loginAdmin(usuario, password);
     } catch (error) {
       console.error("Error al iniciar sesión como administrador:", error);
       toast({
@@ -91,14 +91,14 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="admin-user" className="font-semibold">
-                Correo electrónico
+                Usuario
               </Label>
               <Input
                 id="admin-user"
-                type="email"
-                placeholder="tu@correo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                placeholder="Tu usuario..."
+                value={usuario}
+                onChange={(e) => setUsuario(e.target.value)}
                 className="rounded-xl"
                 onKeyDown={(e) => e.key === "Enter" && handleLogin()}
               />
@@ -154,41 +154,13 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
           </DialogHeader>
           <div className="space-y-4 py-2 text-sm">
             <p className="text-gray-600">
-              Primero creá una cuenta con correo y contraseña en{" "}
-              <strong>Supabase → Authentication → Users</strong> y copiá su
-              UUID. Luego ejecutá este SQL en el editor de Supabase, reemplazando
-              los valores de ejemplo:
+              El acceso usa el usuario y la contraseña guardados en la tabla{" "}
+              <code>public.usuario</code>. Ingresá los valores de esa tabla; no
+              hace falta crear una cuenta en Supabase Authentication.
             </p>
-            <div className="bg-gray-900 text-green-400 p-4 rounded-xl overflow-x-auto text-xs font-mono whitespace-pre">
-{`ALTER TABLE public.usuario
-  ADD COLUMN IF NOT EXISTS auth_user_id uuid UNIQUE
-  REFERENCES auth.users (id) ON DELETE CASCADE;
-
-ALTER TABLE public.usuario DROP COLUMN IF EXISTS password;
-ALTER TABLE public.usuario ENABLE ROW LEVEL SECURITY;
-GRANT SELECT ON TABLE public.usuario TO authenticated;
-
-DO $$
-DECLARE policy_name text;
-BEGIN
-  FOR policy_name IN
-    SELECT policyname FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'usuario'
-  LOOP
-    EXECUTE format('DROP POLICY %I ON public.usuario', policy_name);
-  END LOOP;
-END $$;
-
-CREATE POLICY "admin_read_own_role"
-  ON public.usuario FOR SELECT TO authenticated
-  USING (auth_user_id = auth.uid());
-
-INSERT INTO public.usuario (usuario, auth_user_id, "rolId")
-  VALUES ('tu@correo.com', 'UUID_DEL_USUARIO'::uuid, 1);`}
-            </div>
             <p className="text-gray-500 text-xs">
-              No habilites lectura pública para la tabla <code>usuario</code> ni
-              guardes contraseñas en ella. El acceso se autentica con Supabase Auth.
+              Esta validación directa desde el navegador es temporal; más
+              adelante conviene pasarla a un backend.
             </p>
           </div>
           <DialogFooter>
