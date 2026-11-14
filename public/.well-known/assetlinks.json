@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.somosfamilia.alabanza",
+      "sha256_cert_fingerprints": [
+        "FD:83:7D:6C:C9:53:FD:41:D0:93:79:AD:FB:4D:43:D8:6B:EF:AF:BA:AE:58:A9:3B:27:18:DD:EF:1D:5F:4E:D3"
+      ]
+    }
+  }
+]
